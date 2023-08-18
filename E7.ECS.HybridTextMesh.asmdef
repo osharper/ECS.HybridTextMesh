@@ -4,10 +4,11 @@
         "Unity.Entities",
         "Unity.TextMeshPro",
         "Unity.Transforms",
+        "Unity.Entities.Graphics",
         "Unity.Entities.Hybrid",
         "Unity.Mathematics",
         "Unity.Collections",
-        "Unity.Rendering.Hybrid"
+        "Unity.Burst"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

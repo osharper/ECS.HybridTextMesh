@@ -9,7 +9,7 @@ namespace E7.ECS.HybridTextMesh
     [InternalBufferCapacity(128)]
     internal struct GlyphPrefabBuffer : IBufferElementData
     {
-        internal NativeString32 character;
+        internal FixedString32Bytes character;
         internal Entity prefab;
         internal Entity prefabWithScale;
     }

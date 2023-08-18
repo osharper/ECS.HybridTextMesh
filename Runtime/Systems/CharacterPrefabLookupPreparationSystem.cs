@@ -6,17 +6,15 @@ using Unity.Jobs;
 namespace E7.ECS.HybridTextMesh
 {
     [UpdateInGroup(typeof(HybridTextMeshSimulationGroup))]
-    internal class CharacterPrefabLookupPreparationSystem : SystemBase
+    internal partial class CharacterPrefabLookupPreparationSystem : SystemBase
     {
         List<NativeHashMap<char, Entity>> forDispose;
-        BeginInitializationEntityCommandBufferSystem ecbs;
         EntityQuery noLookupFontAssetQuery;
 
         protected override void OnCreate()
         {
             base.OnCreate();
             forDispose = new List<NativeHashMap<char, Entity>>(4);
-            ecbs = World.GetOrCreateSystem<BeginInitializationEntityCommandBufferSystem>();
 
             RequireForUpdate(noLookupFontAssetQuery);
         }
@@ -32,7 +30,9 @@ namespace E7.ECS.HybridTextMesh
 
         protected override void OnUpdate()
         {
-            var ecb = ecbs.CreateCommandBuffer();
+            var singleton = SystemAPI.GetSingleton<BeginInitializationEntityCommandBufferSystem.Singleton>();
+            var ecb = singleton.CreateCommandBuffer(EntityManager.WorldUnmanaged);
+            
             Entities.WithAll<FontAssetEntity>().ForEach(
                     (Entity e, in FontAssetHolder holder, in DynamicBuffer<GlyphPrefabBuffer> buffer) =>
                     {
@@ -48,7 +48,7 @@ namespace E7.ECS.HybridTextMesh
                             nativeHashMapWithScale.Add(buffer[i].character.ToString()[0], buffer[i].prefabWithScale);
                         }
 
-                        EntityManager.AddSharedComponentData(e,
+                        EntityManager.AddSharedComponent(e,
                             new GlyphPrefabLookup
                             {
                                 characterToPrefabEntity = nativeHashMap,
@@ -58,7 +58,8 @@ namespace E7.ECS.HybridTextMesh
                 .WithStoreEntityQueryInField(ref noLookupFontAssetQuery)
                 .WithStructuralChanges()
                 .Run();
-            ecb.RemoveComponent<GlyphPrefabBuffer>(noLookupFontAssetQuery);
+            
+            ecb.RemoveComponent<GlyphPrefabBuffer>(noLookupFontAssetQuery, EntityQueryCaptureMode.AtRecord);
         }
     }
 }

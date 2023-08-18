@@ -12,26 +12,22 @@ namespace E7.ECS.HybridTextMesh
     /// After this is done once, it is all up to transform system every frame.
     /// </summary>
     [UpdateInGroup(typeof(HybridTextMeshToTransformGroup))]
-    internal class GlyphLayoutSystem : SystemBase
+    internal partial class GlyphLayoutSystem : SystemBase
     {
         EntityQuery notLayoutYetQuery;
         BeginInitializationEntityCommandBufferSystem ecbs;
         EntityQuery layoutAgainQuery;
 
 
-        protected override void OnCreate()
-        {
-            base.OnCreate();
-            ecbs = World.GetOrCreateSystem<BeginInitializationEntityCommandBufferSystem>();
-        }
-
         protected override void OnUpdate()
         {
-            var ecb = ecbs.CreateCommandBuffer();
-            var TranslationCdfe = GetComponentDataFromEntity<Translation>(isReadOnly: false);
-            var ScaleCdfe = GetComponentDataFromEntity<NonUniformScale>(isReadOnly: false);
-            var MetricsCdfe = GetComponentDataFromEntity<GlyphMetrics>(isReadOnly: true);
-            var SpecialCharacterCdfe = GetComponentDataFromEntity<SpecialCharacter>(isReadOnly: true);
+            var singleton = SystemAPI.GetSingleton<BeginInitializationEntityCommandBufferSystem.Singleton>();
+            var ecb = singleton.CreateCommandBuffer(EntityManager.WorldUnmanaged);
+            
+            var TranslationCdfe = GetComponentLookup<LocalTransform>(isReadOnly: false);
+            //var ScaleCdfe = GetComponentDataFromEntity<NonUniformScale>(isReadOnly: false);
+            var MetricsCdfe = GetComponentLookup<GlyphMetrics>(isReadOnly: true);
+            var SpecialCharacterCdfe = GetComponentLookup<SpecialCharacter>(isReadOnly: true);
 
             Dependency = Entities
                 .WithReadOnly(MetricsCdfe)
@@ -47,7 +43,7 @@ namespace E7.ECS.HybridTextMesh
                 })
                 .WithStoreEntityQueryInField(ref notLayoutYetQuery)
                 .ScheduleParallel(Dependency);
-            ecb.AddComponent<LayoutCompleted>(notLayoutYetQuery);
+            ecb.AddComponent<LayoutCompleted>(notLayoutYetQuery, EntityQueryCaptureMode.AtRecord);
 
             Dependency = Entities
                 .WithReadOnly(MetricsCdfe)
@@ -70,9 +66,9 @@ namespace E7.ECS.HybridTextMesh
             Entity head,
             TextTransform tt, FontMetrics ttf,
             DynamicBuffer<GlyphEntityGroup> leg,
-            ComponentDataFromEntity<Translation> TranslationCdfe,
-            ComponentDataFromEntity<GlyphMetrics> MetricsCdfe,
-            ComponentDataFromEntity<SpecialCharacter> SpecialCharacterCdfe)
+            ComponentLookup<LocalTransform> TranslationCdfe,
+            ComponentLookup<GlyphMetrics> MetricsCdfe,
+            ComponentLookup<SpecialCharacter> SpecialCharacterCdfe)
         {
             float lineSize = tt.rect.width;
 
@@ -90,7 +86,7 @@ namespace E7.ECS.HybridTextMesh
             {
                 Entity c = leg[i].character;
                 if (c == head) continue;
-                Translation translation = TranslationCdfe[c];
+                LocalTransform translation = TranslationCdfe[c];
                 GlyphMetrics glyphMetrics = MetricsCdfe[c];
 
                 xNow -= glyphMetrics.texturePaddings.w;
@@ -125,7 +121,7 @@ namespace E7.ECS.HybridTextMesh
                 }
                 else
                 {
-                    translation.Value = new float3(
+                    translation.Position = new float3(
                         xNow,
                         yNow - glyphMetrics.texturePaddings.z, 0);
 
@@ -151,14 +147,14 @@ namespace E7.ECS.HybridTextMesh
                 {
                     Entity c = leg[i].character;
                     if (c == head) continue;
-                    Translation translation = TranslationCdfe[c];
+                    LocalTransform translation = TranslationCdfe[c];
                     switch (tt.textAlignmentVertical)
                     {
                         case TextVerticalAlignment.Middle:
-                            translation.Value.y -= ((tt.rect.height / 2f) + (rectOffset / 2f) - (cumulativeY / 2f));
+                            translation.Position.y -= ((tt.rect.height / 2f) + (rectOffset / 2f) - (cumulativeY / 2f));
                             break;
                         case TextVerticalAlignment.Bottom:
-                            translation.Value.y -= ((tt.rect.height + rectOffset) - (cumulativeY));
+                            translation.Position.y -= ((tt.rect.height + rectOffset) - (cumulativeY));
                             break;
                     }
 
@@ -170,7 +166,7 @@ namespace E7.ECS.HybridTextMesh
         static void LineHorizontalAlign(
             TextTransform tt,
             DynamicBuffer<GlyphEntityGroup> leg,
-            ComponentDataFromEntity<Translation> TranslationCdfe,
+            ComponentLookup<LocalTransform> TranslationCdfe,
             int beginOfLineCharacterIndex,
             int indexNewLine,
             float totalEffectiveWidth
@@ -185,13 +181,13 @@ namespace E7.ECS.HybridTextMesh
                     switch (tt.textAlignmentHorizontal)
                     {
                         case TextAlignment.Center:
-                            prevTrans.Value.x -= totalEffectiveWidth / 2f;
-                            prevTrans.Value.x += tt.rect.width / 2f;
+                            prevTrans.Position.x -= totalEffectiveWidth / 2f;
+                            prevTrans.Position.x += tt.rect.width / 2f;
                             break;
                         case TextAlignment.Right:
                             //Entity lastCharacterInLine = leg[i - 1].Value;
-                            prevTrans.Value.x -= totalEffectiveWidth; //+ MetricsCdfe[lastCharacterInLine].size.x;
-                            prevTrans.Value.x += tt.rect.width;
+                            prevTrans.Position.x -= totalEffectiveWidth; //+ MetricsCdfe[lastCharacterInLine].size.x;
+                            prevTrans.Position.x += tt.rect.width;
                             break;
                     }
 

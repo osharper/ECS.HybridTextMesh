@@ -20,16 +20,15 @@ namespace E7.ECS.HybridTextMesh
             
         public static readonly ComponentType[] CharacterTypes = new[]
         {
-            ComponentType.ReadOnly<Translation>(),
-            ComponentType.ReadOnly<RenderMesh>(),
-            ComponentType.ReadOnly<RenderBounds>(), //New hybrid renderer no longer add this.
+            ComponentType.ReadOnly<RenderBounds>(),
             ComponentType.ReadOnly<LocalToWorld>(),
-            ComponentType.ReadOnly<LocalToParent>(),
+            ComponentType.ReadOnly<LocalTransform>(),
             ComponentType.ReadOnly<GlyphUv>(),
             ComponentType.ReadOnly<GlyphMetrics>(),
             ComponentType.ReadOnly<Parent>(),
             ComponentType.ReadOnly<SpecialCharacter>(),
         };
+        
         internal static readonly ComponentType[] FontAssetTypes = new[]
         {
             ComponentType.ReadOnly<FontAssetEntity>(),

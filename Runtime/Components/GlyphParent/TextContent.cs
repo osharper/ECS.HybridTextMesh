@@ -10,6 +10,6 @@ namespace E7.ECS.HybridTextMesh
     /// </summary>
     public struct TextContent : IComponentData
     {
-        public NativeString512 text;
+        public FixedString512Bytes text;
     }
 }

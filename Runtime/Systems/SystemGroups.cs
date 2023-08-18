@@ -4,13 +4,13 @@ using Unity.Transforms;
 namespace E7.ECS.HybridTextMesh
 {
     [UpdateInGroup(typeof(SimulationSystemGroup))]
-    public class HybridTextMeshSimulationGroup : ComponentSystemGroup
+    public partial class HybridTextMeshSimulationGroup : ComponentSystemGroup
     {
     }
 
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateBefore(typeof(TransformSystemGroup))]
-    public class HybridTextMeshToTransformGroup : ComponentSystemGroup
+    public partial class HybridTextMeshToTransformGroup : ComponentSystemGroup
     {
     }
 }

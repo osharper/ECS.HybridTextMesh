@@ -1,8 +1,6 @@
 using Unity.Entities;
-using Unity.Jobs;
 using Unity.Rendering;
 using Unity.Transforms;
-using UnityEngine;
 
 namespace E7.ECS.HybridTextMesh
 {
@@ -14,14 +12,12 @@ namespace E7.ECS.HybridTextMesh
     /// </summary>
     [UpdateInGroup(typeof(HybridTextMeshSimulationGroup))]
     [UpdateAfter(typeof(EnsureFontAssetEntitySystem))]
-    internal class GlyphSpawningSystem : SystemBase
+    internal partial class GlyphSpawningSystem : SystemBase
     {
         BeginInitializationEntityCommandBufferSystem ecbs;
         EntityQuery fontAssetQuery;
         EntityQuery changedRegenerationQuery;
-        FastEquality.TypeInfo textTypeInfo;
         EntityQuery initialGenerationQuery;
-        FastEquality.TypeInfo structureTypeInfo;
 
         internal struct GlyphSpawned : IComponentData
         {
@@ -36,21 +32,19 @@ namespace E7.ECS.HybridTextMesh
         protected override void OnCreate()
         {
             base.OnCreate();
-            ecbs = World.GetOrCreateSystem<BeginInitializationEntityCommandBufferSystem>();
             fontAssetQuery = GetEntityQuery(
                 ComponentType.ReadOnly<FontAssetEntity>(),
                 ComponentType.ReadOnly<FontAssetHolder>(),
                 ComponentType.ReadOnly<GlyphPrefabLookup>()
             );
-            textTypeInfo = TypeManager.GetFastEqualityTypeInfo(TypeManager.GetTypeInfo<TextContent>());
-            structureTypeInfo = TypeManager.GetFastEqualityTypeInfo(TypeManager.GetTypeInfo<TextStructure>());
         }
 
         protected override void OnUpdate()
         {
             if (initialGenerationQuery.CalculateChunkCount() > 0 || changedRegenerationQuery.CalculateChunkCount() > 0)
             {
-                var ecb = ecbs.CreateCommandBuffer();
+                var singleton = SystemAPI.GetSingleton<BeginInitializationEntityCommandBufferSystem.Singleton>();
+                var ecb = singleton.CreateCommandBuffer(EntityManager.WorldUnmanaged);
 
                 Entities
                     .WithName("InitialMeshGeneration")
@@ -84,42 +78,33 @@ namespace E7.ECS.HybridTextMesh
                             in FontAssetHolder holder,
                             in DynamicBuffer<GlyphEntityGroup> leg) =>
                         {
-                            //Cannot use JUST changed filter, on removing children transform system will
-                            //cause archetype change and that would loop trigger change filter
-                            //even though value didn't technically changed.
+                            //TODO: Cannot use JUST changed filter, on removing children transform system will
+                            // cause archetype change and that would loop trigger change filter
+                            // even though value didn't technically changed.
 
-                            bool changedForReal1 =
-                                FastEquality.Equals<TextContent>(t, td.previousText, textTypeInfo) == false;
-                            bool changedForReal2 =
-                                FastEquality.Equals<TextStructure>(ts, td.previousStructure, structureTypeInfo) ==
-                                false;
+                            //Destroy all existing text meshes next frame.
 
-                            if (changedForReal1 || changedForReal2)
+                            //If persistent mode, the generate meshes would just set data.
+                            if (ts.persistentCharacterEntityMode == false)
                             {
-                                //Destroy all existing text meshes next frame.
-
-                                //If persistent mode, the generate meshes would just set data.
-                                if (ts.persistentCharacterEntityMode == false)
+                                for (int i = 0; i < leg.Length; i++)
                                 {
-                                    for (int i = 0; i < leg.Length; i++)
-                                    {
-                                        ecb.DestroyEntity(leg[i].character);
-                                    }
+                                    ecb.DestroyEntity(leg[i].character);
                                 }
+                            }
 
-                                if (!GenerateMeshes(EntityManager, fontAssetQuery, holder, t, ts, ecb, e, leg,
+                            if (!GenerateMeshes(EntityManager, fontAssetQuery, holder, t, ts, ecb, e, leg,
                                     updateMode: ts.persistentCharacterEntityMode))
-                                {
-                                    //This should make it retry with the above routine in response for this change.
-                                    ecb.RemoveComponent<GlyphSpawned>(e);
-                                }
-                                else
-                                {
-                                    //Re-layout and record change.
-                                    ecb.RemoveComponent<LayoutCompleted>(e);
-                                    td.previousText = t;
-                                    td.previousStructure = ts;
-                                }
+                            {
+                                //This should make it retry with the above routine in response for this change.
+                                ecb.RemoveComponent<GlyphSpawned>(e);
+                            }
+                            else
+                            {
+                                //Re-layout and record change.
+                                ecb.RemoveComponent<LayoutCompleted>(e);
+                                td.previousText = t;
+                                td.previousStructure = ts;
                             }
                         })
                     .WithStoreEntityQueryInField(ref changedRegenerationQuery)
@@ -138,11 +123,11 @@ namespace E7.ECS.HybridTextMesh
             bool updateMode
         )
         {
-            fontAssetQuery.SetSharedComponentFilter(holder);
+            fontAssetQuery.SetSharedComponentFilterManaged(holder);
             if (fontAssetQuery.CalculateChunkCount() > 0)
             {
                 var lookup =
-                    em.GetSharedComponentData<GlyphPrefabLookup>(fontAssetQuery
+                    em.GetSharedComponentManaged<GlyphPrefabLookup>(fontAssetQuery
                         .GetSingletonEntity());
                 var nhm = ts.perCharacterScalingMode
                     ? lookup.characterToPrefabEntityWithScale
@@ -191,8 +176,8 @@ namespace E7.ECS.HybridTextMesh
                             if (nhm.TryGetValue(c, out Entity prefab))
                             {
                                 //Manually copy from prefab instead of instantiation
-                                ecb.SetSharedComponent(existingCharacter,
-                                    em.GetSharedComponentData<RenderMesh>(prefab));
+                                ecb.SetSharedComponentManaged(existingCharacter,
+                                    em.GetSharedComponentManaged<RenderMesh>(prefab));
                                 ecb.SetComponent(existingCharacter, em.GetComponentData<GlyphUv>(prefab));
                                 ecb.SetComponent(existingCharacter, em.GetComponentData<GlyphMetrics>(prefab));
                             }
@@ -200,7 +185,7 @@ namespace E7.ECS.HybridTextMesh
                         else
                         {
                             //When buffer has more than string length, set all remaining to make them disappear.
-                            ecb.SetSharedComponent(existingCharacter, default(RenderMesh));
+                            ecb.SetSharedComponentManaged(existingCharacter, default(RenderMesh));
                         }
 
                         counter++;
